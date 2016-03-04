@@ -4,13 +4,12 @@ module.exports = {
     server: function (url) {
         this._url = url;
         this._notNext = false;
-        this._request = {
-            updateRequest: function (newCondition) {
-                if (this['$and'] !== undefined) {
-                    this['$and'].push(newCondition);
-                } else {
-                    this['$and'] = [newCondition];
-                }
+        this._request = {};
+        this._request.updateRequest = function (newCondition) {
+            if (this['$and'] === undefined) {
+                this['$and'] = [newCondition];
+            } else {
+                this['$and'].push(newCondition);
             }
         };
         return this;
@@ -39,7 +38,7 @@ module.exports = {
     },
 
     greatThan: function (n) {
-        condition = {};
+        var condition = {};
         if (this._notNext) {
             condition[this._field] = { $lte: n};
             this._notNext = false;
