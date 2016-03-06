@@ -1,97 +1,103 @@
 var mongoClient = require('mongodb').MongoClient;
 
+function createSession(serverName) {
+    return {
+        _url: serverName,
+        _notNext: false,
+        _request: {},
+        _updateRequest: function (newCondition) {
+            if (this._request[this._field] === undefined) {
+                this._request[this._field] = newCondition;
+            } else {
+                var key = Object.keys(newCondition)[0];
+                this._request[this._field][key] = newCondition[key];
+            }
+        },
+
+        collection: function (collectionName) {
+            this._collectionName = collectionName;
+            return this;
+        },
+
+        where: function (key) {
+            this._field = key;
+            return this;
+        },
+
+        lessThan: function (n) {
+            if (this._notNext) {
+                var condition = { $gte: n};
+                this._notNext = false;
+            } else {
+                condition = { $lt: n};
+            }
+            this._updateRequest(condition);
+            return this;
+        },
+
+        greatThan: function (n) {
+            if (this._notNext) {
+                var condition = { $lte: n};
+                this._notNext = false;
+            } else {
+                condition = { $gt: n};
+            }
+            this._updateRequest(condition);
+            return this;
+        },
+
+        include: function (words) {
+            if (this._notNext) {
+                condition = { $nin: words};
+                this._notNext = false;
+            } else {
+                condition = { $in: words};
+            }
+            this._updateRequest(condition);
+            return this;
+        },
+
+        equal: function (word) {
+            if (this._notNext) {
+                var condition = { $neq: word};
+                this._notNext = false;
+            } else {
+                condition = { $eq: word};
+            }
+            this._updateRequest(condition);
+            return this;
+        },
+
+        not: function () {
+            this._notNext = !this._notNext;
+            return this;
+        },
+
+        find: function (callback) {
+            var req = this._request;
+            var url = this._url;
+            var collectionName = this._collectionName;
+            if (collectionName === undefined) {
+                console.log('Set collection before finding');
+                return this;
+            }
+            mongoClient.connect(url, function (err, db) {
+                db.collection(collectionName)
+                    .find(req)
+                    .toArray(function (err, docs) {
+                        callback(err, docs);
+                        db.close();
+                    });
+            });
+            this._request = {};
+            this._field = {};
+            return this;
+        }
+    };
+}
+
 module.exports = {
     server: function (url) {
-        this._url = url;
-        this._notNext = false;
-        this._request = {};
-        this._request.updateRequest = function (newCondition) {
-            if (this['$and'] === undefined) {
-                this['$and'] = [newCondition];
-            } else {
-                this['$and'].push(newCondition);
-            }
-        };
-        return this;
-    },
-
-    collection: function (collectionName) {
-        this._collectionName = collectionName;
-        return this;
-    },
-
-    where: function (key) {
-        this._field = key;
-        return this;
-    },
-
-    lessThan: function (n) {
-        var condition = {};
-        if (this._notNext) {
-            condition[this._field] = { $gte: n};
-            this._notNext = false;
-        } else {
-            condition[this._field] = { $lt: n};
-        }
-        this._request.updateRequest(condition);
-        return this;
-    },
-
-    greatThan: function (n) {
-        var condition = {};
-        if (this._notNext) {
-            condition[this._field] = { $lte: n};
-            this._notNext = false;
-        } else {
-            condition[this._field] = { $gt: n};
-        }
-        this._request.updateRequest(condition);
-        return this;
-    },
-
-    include: function (words) {
-        var condition = {};
-        if (this._notNext) {
-            condition[this._field] = { $nin: words};
-            this._notNext = false;
-        } else {
-            condition[this._field] = { $in: words};
-        }
-        this._request.updateRequest(condition);
-        return this;
-    },
-
-    equal: function (word) {
-        var condition = {};
-        if (this._notNext) {
-            condition[this._field] = { $neq: word};
-            this._notNext = false;
-        } else {
-            condition[this._field] = { $eq: word};
-            condition[this._field] = { $eq: word};
-        }
-        this._request.updateRequest(condition);
-        return this;
-    },
-
-    not: function () {
-        this._notNext = !this._notNext;
-        return this;
-    },
-
-    find: function (callback) {
-        var req = {
-            $and: this._request.$and
-        };
-        var url = this._url;
-        var collectionName = this._collectionName;
-        mongoClient.connect(url, function (err, db) {
-            db.collection(collectionName)
-                .find(req)
-                .toArray(function (err, docs) {
-                    callback(err, docs);
-                    db.close();
-            });
-        });
+        return createSession(url);
     }
 };
